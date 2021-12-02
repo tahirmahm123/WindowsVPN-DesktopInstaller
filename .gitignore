@@ -1,0 +1,6 @@
+.DS_Store
+*.exe
+*.zip
+openvpn-bin/
+qml/
+sdk/
