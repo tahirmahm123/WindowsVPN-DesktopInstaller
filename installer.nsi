@@ -172,6 +172,7 @@ Section -post
 
 	; Add autorun entry
 	WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}" "$INSTDIR\bin\JewelVPN.exe"
+	WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "InfeticaService" "$INSTDIR\bin\sdk\infatica-service-app.exe"
 SectionEnd
 
 Function un.onInit
@@ -219,5 +220,6 @@ Section "Uninstall"
 	RMDir "$INSTDIR"
 
 	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}"
+	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "InfeticaService"
 	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}"
 SectionEnd
