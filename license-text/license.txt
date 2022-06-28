@@ -1,0 +1,6 @@
+Jewel VPN lets you unlock Geo-Blocking and evade firewalls in exchange for a small amount of your unused processing power, storage, and bandwidth managed by Massive.
+
+Your idle computing resources are used to mine cryptocurrency, run scientific simulations, and perform other distributed tasks, which may increase electricity consumption or decrease battery life (see Massive’s FAQ for details).
+
+
+Pressing 'Accept' indicates that you agree to Massive's license (https://jewelvpn.com/index.php/privacy-policy/), privacy policy (https://jewelvpn.com/index.php/terms-of-use/), and accept to install Jewel VPN.

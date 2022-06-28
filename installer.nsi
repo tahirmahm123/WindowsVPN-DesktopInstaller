@@ -1,3 +1,5 @@
+ManifestDPIAware true
+
 SetCompressor lzma
 
 !addplugindir ".\plugins"
@@ -8,17 +10,18 @@ SetCompressor lzma
 !include "UAC.nsh"
 !include "WinVer.nsh"
 !include x64.nsh
+!include nsDialogs.nsh
 
-!define OPENVPN_ROOT "openvpn-bin"
+!define OPENVPN_ROOT "bin"
 !define QT_REDIST_ROOT "qt-redist"
 !define QT_QML_ROOT "qml"
 !define TAP_WINDOWS_INSTALLER "tap-windows.exe"
 !define VCREDIST_INSTALLER "vc-redist\vc_redist.x64.exe"
 !define PACKAGE_NAME "JewelVPN"
-!define VERSION_STRING "1.0"
+!define VERSION_STRING "1.2"
 !define MUI_ICON ".\icon.ico"
 !define MUI_UNICON ".\icon.ico"
-
+!define REGISTER_UPATH "Software\Microsoft\Windows\CurrentVersion\Uninstall\"
 ;General
 
 ; Package name as shown in the installer GUI
@@ -31,7 +34,7 @@ Name "${PACKAGE_NAME} ${VERSION_STRING}"
 InstallDir "$PROGRAMFILES\${PACKAGE_NAME}"
 
 ; Installer filename
-OutFile "output\JewelVPN-installer.exe"
+OutFile "JewelVPN-installer-v1.2.exe"
 RequestExecutionLevel Admin
 
  ShowInstDetails "nevershow"
@@ -41,8 +44,10 @@ RequestExecutionLevel Admin
 ;Modern UI Configuration
 
 !insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "license-text\license.rtf"
+Page custom CreateMassivePage LeaveMassivePage
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_RUN "$INSTDIR\bin\JewelVPN.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\JewelVPN.exe"
 !define MUI_FINISHPAGE_RUN_FUNCTION runApplication
 !insertmacro MUI_PAGE_FINISH
 
@@ -56,62 +61,104 @@ RequestExecutionLevel Admin
 !insertmacro MUI_LANGUAGE "English"
 
 Section "Kill processes"
-	nsExec::ExecToLog 'taskkill /f /im JewelVPN.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im infatica-service-app.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im JewelVPNService.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im JewelVPNVideoAds.exe'
-	Pop $R0
-
+    nsExec::ExecToLog 'taskkill /f /im JewelVPN.exe'
+    Pop $R0
+    nsExec::ExecToLog 'taskkill /f /im JewelVPNService.exe'
+    Pop $R0
+    nsExec::ExecToLog 'taskkill /f /im JewelVPNVideoAds.exe'
+    Pop $R0
 SectionEnd
 
 
 Section "OpenVPN binaries" SecOVPN
-	SetOverwrite on
-	SetOutPath "$INSTDIR\bin"
-	File /r "${OPENVPN_ROOT}\*.*"
+    SetOverwrite on
+    SetOutPath "$INSTDIR"
+    File /r "${OPENVPN_ROOT}\*.*"
 SectionEnd
-
-Section "TAP Virtual Ethernet Adapter" SecTAP
-	SetOverwrite on
-	SetOutPath "$TEMP"
-
-	File /oname=tap-windows.exe "${TAP_WINDOWS_INSTALLER}"
-
-	DetailPrint "Installing TAP (may need confirmation)..."
-	nsExec::ExecToLog '"$TEMP\tap-windows.exe" /S /SELECT_UTILITIES=1'
-	Pop $R0 # return value/error/timeout
-
-	Delete "$TEMP\tap-windows.exe"
-
-	WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "tap" "installed"
-SectionEnd
-
 
 Section "Visual Studio 2017 Binaries" SecVC2017
-	SetOverwrite on
-	SetOutPath "$TEMP"
+    SetOverwrite on
+    SetOutPath "$TEMP"
 
-	File /oname=vc_redist.x64.exe "${VCREDIST_INSTALLER}"
+    File /oname=vc_redist.x64.exe "${VCREDIST_INSTALLER}"
 
-	DetailPrint "Installing VC2017 binaries..."
-	nsExec::ExecToLog '"$TEMP\vc_redist.x64.exe" /quiet'
-	Pop $R0 # return value/error/timeout
+    DetailPrint "Installing VC2017 binaries..."
+    nsExec::ExecToLog '"$TEMP\vc_redist.x64.exe" /quiet'
+    Pop $R0 # return value/error/timeout
 
-	Delete "$TEMP\vc_redist.x64.exe"
+    Delete "$TEMP\vc_redist.x64.exe"
 SectionEnd
 
 Section "JewelVPN binaries" SecMainApp
-	SetOverwrite on
+    SetOverwrite on
 
-	; Copy redistributable DLLs
-	SetOutPath "$INSTDIR\bin"
-	File /r "qml\*.*"
-	; Copy application binaries
-	File /r "bin\*.*"
+    ; Copy redistributable DLLs
+    SetOutPath "$INSTDIR"
+    File /r "qml\*.*"
+    File /r "massive\*.*"
+    ; Copy application binaries
+    File /r "bin\*.*"
 SectionEnd
+
+Var Dialog
+Var MassiveLicenseAgreementLink
+Var MassivePrivacyPolicyLink
+Var MassiveFAQLink
+
+Function CreateMassivePage
+    !insertmacro MUI_HEADER_TEXT "Massive service" "Please review the license terms before installing Massive."
+
+    GetDlgItem $0 $hwndparent 1
+    SendMessage $0 ${WM_SETTEXT} 0 `STR:Accept` ; Install -> Accept
+
+    GetDlgItem $0 $hwndparent 2
+    SendMessage $0 ${WM_SETTEXT} 0 `STR:Decline` ; Cancel -> Decline
+
+    nsDialogs::Create 1018
+        Pop $Dialog
+
+    ${If} $Dialog == error
+        Abort
+    ${EndIf}
+
+    ${NSD_CreateLabel} 0u 0u 100% 30u "JewelVPN lets you anonymously access the internet for free in exchange for a small amount of your unused processing power, storage, and bandwidth managed by Massive. You can monitor and adjust this resource use anytime by pressing the Massive taskbar icon to open the controls."
+        Pop $0
+
+    ${NSD_CreateLabel} 0u 35u 100% 30u "Your idle computing resources are used to mine cryptocurrency, run scientific simulations, and perform other disributed tasks, which may increase electricity consumption or decrease battery life (see Massive's FAQ for details)."
+        Pop $0
+
+    ${NSD_CreateLabel} 0u 70u 100% 10u "Pressing $\"Accept$\" indicates that you agree to Massive's license and privacy policy."
+        Pop $0
+
+    ${NSD_CreateLink} 10u 90u 100% 10u "License agreement"
+        Pop $MassiveLicenseAgreementLink
+        ${NSD_OnClick} $MassiveLicenseAgreementLink MassiveLicenseAgreementLinkClicked
+
+    ${NSD_CreateLink} 10u 100u 100% 10u "Privacy policy"
+        Pop $MassivePrivacyPolicyLink
+        ${NSD_OnClick} $MassivePrivacyPolicyLink MassivePrivacyPolicyLinkClicked
+
+    ${NSD_CreateLink} 10u 110u 100% 10u "FAQ"
+        Pop $MassiveFAQLink
+        ${NSD_OnClick} $MassiveFAQLink MassiveFAQLinkClicked
+
+    nsDialogs::Show
+FunctionEnd
+
+Function LeaveMassivePage
+FunctionEnd
+
+Function MassiveLicenseAgreementLinkClicked
+    ExecShell "open" "https://joinmassive.com/terms"
+FunctionEnd
+
+Function MassivePrivacyPolicyLinkClicked
+    ExecShell "open" "https://joinmassive.com/privacy"
+FunctionEnd
+
+Function MassiveFAQLinkClicked
+    ExecShell "open" "https://joinmassive.com/faq#users"
+FunctionEnd
 
 Function .onInit
 
@@ -132,94 +179,90 @@ Function .onInit
         ${EndIf}
     has_tap_windows:
 
-	SetShellVarContext all
+    SetShellVarContext all
 FunctionEnd
 
 Function .onInstSuccess
-	SetShellVarContext all
+    SetShellVarContext all
 FunctionEnd
 
 Function runApplication 
-	ExecShell "" "$INSTDIR\bin\JewelVPN.exe"
+    ExecShell "" "$INSTDIR\JewelVPN.exe"
 FunctionEnd
 
 Section -post
 
-	SetOverwrite on
-	SetOutPath "$INSTDIR"
+    SetOverwrite on
+    SetOutPath "$INSTDIR"
 
-	nsExec::ExecToLog '"$INSTDIR\bin\JewelVPNService.exe" deploy'
-	nsExec::ExecToLog '"$INSTDIR\bin\JewelVPNService.exe" start'
+    nsExec::ExecToLog '"$INSTDIR\JewelVPNService.exe" deploy'
+    nsExec::ExecToLog '"$INSTDIR\JewelVPNService.exe" start'
 
-	; Store install folder in registry
-	WriteRegStr HKLM "SOFTWARE\${PACKAGE_NAME}" "" "$INSTDIR"
+    ; Store install folder in registry
+    WriteRegStr HKLM "SOFTWARE\${PACKAGE_NAME}" "" "$INSTDIR"
 
-	; Create uninstaller
-	WriteUninstaller "$INSTDIR\Uninstall.exe"
+    ; Create uninstaller
+    WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-	; Show up in Add/Remove programs
-	WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "DisplayName" "${PACKAGE_NAME} ${VERSION_STRING}"
-	WriteRegExpandStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
-	WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "DisplayIcon" "$INSTDIR\Uninstall.exe"
-	WriteRegStr HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "DisplayVersion" "${VERSION_STRING}"
+    ; Show up in Add/Remove programs
+    WriteRegStr HKLM "${REGISTER_UPATH}${PACKAGE_NAME}" "DisplayName" "${PACKAGE_NAME} ${VERSION_STRING}"
+    WriteRegExpandStr HKLM "${REGISTER_UPATH}${PACKAGE_NAME}" "UninstallString" "$INSTDIR\Uninstall.exe"
+    WriteRegStr HKLM "${REGISTER_UPATH}${PACKAGE_NAME}" "DisplayIcon" "$INSTDIR\Uninstall.exe"
+    WriteRegStr HKLM "${REGISTER_UPATH}${PACKAGE_NAME}" "DisplayVersion" "${VERSION_STRING}"
 
-	; Create entry in start menu
-	CreateDirectory "$SMPROGRAMS\${PACKAGE_NAME}"
-	CreateShortCut "$SMPROGRAMS\${PACKAGE_NAME}\${PACKAGE_NAME}.lnk" "$INSTDIR\bin\JewelVPN.exe" "" ""
+    ; Create entry in start menu
+    CreateDirectory "$SMPROGRAMS\${PACKAGE_NAME}"
+    CreateShortCut "$SMPROGRAMS\${PACKAGE_NAME}\${PACKAGE_NAME}.lnk" "$INSTDIR\JewelVPN.exe" "" ""
 
-	;create desktop shortcut
-	CreateShortCut "$DESKTOP\JewelVPN.lnk" "$INSTDIR\bin\JewelVPN.exe" ""
+    
+    ;create desktop shortcut
+    CreateShortCut "$DESKTOP\JewelVPN.lnk" "$INSTDIR\JewelVPN.exe" ""
 
-	; Add autorun entry
-	WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}" "$INSTDIR\bin\JewelVPN.exe"
-	WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "InfeticaService" "$INSTDIR\bin\sdk\infatica-service-app.exe"
+    ; Add autorun entry
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}" "$INSTDIR\JewelVPN.exe"
 SectionEnd
 
 Function un.onInit
-	ClearErrors
-	SetShellVarContext all
+    ClearErrors
+    SetShellVarContext all
 FunctionEnd
 
 Section "Uninstall"
 
-	; Stop JewelVPN if currently running
+    ; Stop JewelVPN if currently running
 
-	nsExec::ExecToLog '"$INSTDIR\bin\JewelVPNService.exe" stop'
-	Pop $R0
-	nsExec::ExecToLog '"$INSTDIR\bin\JewelVPNService.exe" undeploy'
-	Pop $R0 # return value/error/timeout
+    nsExec::ExecToLog '"$INSTDIR\JewelVPNService.exe" stop'
+    Pop $R0
+    nsExec::ExecToLog '"$INSTDIR\JewelVPNService.exe" undeploy'
+    Pop $R0 # return value/error/timeout
 
-	nsExec::ExecToLog 'taskkill /f /im JewelVPN.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im infatica-service-app.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im JewelVPNService.exe'
-	Pop $R0
-	nsExec::ExecToLog 'taskkill /f /im JewelVPNVideoAds.exe'
-	Pop $R0
+    nsExec::ExecToLog 'taskkill /f /im JewelVPN.exe'
+    Pop $R0
+    nsExec::ExecToLog 'taskkill /f /im JewelVPNService.exe'
+    Pop $R0
+    nsExec::ExecToLog 'taskkill /f /im JewelVPNVideoAds.exe'
+    Pop $R0
 
-	Sleep 3000
+    Sleep 3000
 
-	ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}" "tap"
-	${If} $R0 == "installed"
-		ReadRegStr $R0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\TAP-Windows" "UninstallString"
-		${If} $R0 != ""
-			DetailPrint "Uninstalling TAP..."
-			nsExec::ExecToLog '"$R0" /S'
-			Pop $R0 # return value/error/timeout
-		${EndIf}
-	${EndIf}
+    ReadRegStr $R0 HKLM "${REGISTER_UPATH}${PACKAGE_NAME}" "tap"
+    ${If} $R0 == "installed"
+        ReadRegStr $R0 HKLM "${REGISTER_UPATH}TAP-Windows" "UninstallString"
+        ${If} $R0 != ""
+            DetailPrint "Uninstalling TAP..."
+            nsExec::ExecToLog '"$R0" /S'
+            Pop $R0 # return value/error/timeout
+        ${EndIf}
+    ${EndIf}
 
-	Delete "$SMPROGRAMS\${PACKAGE_NAME}\${PACKAGE_NAME}.lnk"
-	RmDir "$SMPROGRAMS\${PACKAGE_NAME}" 
+
+    Delete "$SMPROGRAMS\${PACKAGE_NAME}\${PACKAGE_NAME}.lnk"
+    RmDir "$SMPROGRAMS\${PACKAGE_NAME}" 
     
-	RmDir /r $INSTDIR\bin
+    RmDir /r $INSTDIR
 
-	Delete "$INSTDIR\Uninstall.exe"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}"
 
-	RMDir "$INSTDIR"
-
-	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PACKAGE_NAME}"
-	DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "InfeticaService"
-	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\${PACKAGE_NAME}"
+    ; Remove Jewel Entry
+    DeleteRegKey HKLM "${REGISTER_UPATH}${PACKAGE_NAME}"
 SectionEnd
